@@ -1,39 +1,11 @@
-use crate::canvas::{Canvas, CanvasCoordinate};
+pub(crate) mod object;
+
+use crate::canvas::Canvas;
 use crate::color::Color;
-use crate::shape::sphere::Sphere;
+use crate::coord::{CanvasCoordinate, WorldCoordinate};
 use crate::traits::Converts;
-use std::ops::Sub;
-
-pub(crate) const ORIGIN: WorldCoordinate = WorldCoordinate {
-    x: 0.0,
-    y: 0.0,
-    z: 0.0,
-};
-
-#[derive(Copy, Clone, PartialEq)]
-pub(crate) struct WorldCoordinate {
-    x: f64,
-    y: f64,
-    z: f64,
-}
-
-impl WorldCoordinate {
-    pub(crate) fn new(x: f64, y: f64, z: f64) -> Self {
-        Self { x, y, z }
-    }
-
-    pub(crate) fn dot(self, other: Self) -> f64 {
-        self.x * other.x + self.y * other.y + self.z * other.z
-    }
-}
-
-impl Sub<WorldCoordinate> for WorldCoordinate {
-    type Output = Self;
-
-    fn sub(self, other: Self) -> Self {
-        WorldCoordinate::new(self.x - other.x, self.y - other.y, self.z - other.z)
-    }
-}
+use object::light::Light;
+use object::shape::Sphere;
 
 #[derive(Copy, Clone)]
 pub(crate) struct ViewPort {
@@ -58,6 +30,8 @@ pub(crate) struct Scene {
     canvas: Canvas,
     spheres: Vec<Sphere>,
     background_color: Color,
+    lights: Vec<Light>,
+    title: String,
 }
 
 impl Scene {
@@ -66,6 +40,7 @@ impl Scene {
         viewport: ViewPort,
         canvas: Canvas,
         background_color: Color,
+        title: String,
     ) -> Self {
         Scene {
             camera_position,
@@ -73,19 +48,22 @@ impl Scene {
             canvas,
             spheres: vec![],
             background_color,
+            lights: vec![],
+            title,
         }
     }
 
-    pub(crate) fn add_sphere(&mut self, sphere: Sphere) {
-        self.spheres.push(sphere)
+    pub(crate) fn with_lights(mut self, lights: Vec<Light>) -> Self {
+        self.lights = lights;
+        self
     }
 
-    pub(crate) fn trace_ray(
-        &self,
-        viewport_coord: WorldCoordinate,
-        t_min: f64,
-        t_max: f64,
-    ) -> Color {
+    pub(crate) fn with_spheres(mut self, spheres: Vec<Sphere>) -> Self {
+        self.spheres = spheres;
+        self
+    }
+
+    fn trace_ray(&self, viewport_coord: WorldCoordinate, t_min: f64, t_max: f64) -> Color {
         let mut closest_t = f64::INFINITY;
         let mut closest_sphere: Option<&Sphere> = None;
         for sphere in self.spheres.iter() {
@@ -101,9 +79,26 @@ impl Scene {
         }
 
         match closest_sphere {
-            Some(s) => s.color(),
+            Some(s) => {
+                let color = s.color();
+                let point = self.camera_position + viewport_coord * closest_t;
+                let normal = {
+                    let normal_dir = point - s.center();
+                    normal_dir / normal_dir.abs()
+                };
+                let light_intensity = self.compute_lighting(point, normal);
+
+                color.scale(light_intensity)
+            }
             None => self.background_color,
         }
+    }
+
+    fn compute_lighting(&self, point: WorldCoordinate, normal: WorldCoordinate) -> f64 {
+        self.lights
+            .iter()
+            .map(|l| l.illumination_at_point(point, normal))
+            .sum()
     }
 
     pub(crate) fn render(&self, frame: &mut [u8]) {
@@ -112,6 +107,10 @@ impl Scene {
             let color = self.trace_ray(viewport_coord, 1f64, f64::INFINITY);
             self.canvas.put_pixel(frame, coord, color);
         }
+    }
+
+    pub(crate) fn canvas(&self) -> Canvas {
+        self.canvas
     }
 }
 

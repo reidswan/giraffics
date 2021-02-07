@@ -36,6 +36,10 @@ impl Sphere {
         self.color
     }
 
+    pub(crate) fn center(self) -> WorldCoordinate {
+        self.center
+    }
+
     pub(crate) fn new(radius: f64, center: WorldCoordinate, color: Color) -> Self {
         Self {
             radius,

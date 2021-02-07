@@ -1,12 +1,13 @@
 use crate::color::Color;
+use crate::coord::{CanvasCoordinate, ScreenCoordinate};
 use crate::traits::Converts;
 use pixels::{Error, Pixels, SurfaceTexture};
 use std::iter::Iterator;
 use winit::dpi::LogicalSize;
 use winit::window::{Window, WindowBuilder};
 
-const DEFAULT_WIDTH: usize = 1000;
-const DEFAULT_HEIGHT: usize = 700;
+pub(crate) const DEFAULT_WIDTH: usize = 1000;
+pub(crate) const DEFAULT_HEIGHT: usize = 700;
 
 #[derive(Copy, Clone)]
 pub(crate) struct Canvas {
@@ -47,6 +48,15 @@ impl Canvas {
             .with_inner_size(size)
             .with_min_inner_size(size)
     }
+
+    pub(crate) fn with_width(self, width: usize) -> Self {
+        Self { width, ..self }
+    }
+
+    pub(crate) fn with_height(self, height: usize) -> Self {
+        Self { height, ..self }
+    }
+
     pub(crate) fn width(self) -> usize {
         self.width
     }
@@ -106,31 +116,6 @@ impl Converts<ScreenCoordinate, ScreenCoordinate> for Canvas {
 
 fn out_of_bounds(x: isize, y: isize, width: isize, height: isize) -> bool {
     x < 0 || y < 0 || x >= width || y >= height
-}
-
-/**
- * A coordinate system starting at (0, 0) in the top left and increasing monotically in both axes to the right and down
- */
-#[derive(Copy, Clone)]
-pub(crate) enum ScreenCoordinate {
-    OffScreen,
-    OnScreen { x: usize, y: usize },
-}
-
-/**
- * A coordinate system centered on (0, 0), with corners at
- * (-width/2, -height/2), (width/2, -height/2), (-width/2, height/2), (width/2, height/2)
- */
-#[derive(Copy, Clone, Debug)]
-pub(crate) struct CanvasCoordinate {
-    pub x: isize,
-    pub y: isize,
-}
-
-impl CanvasCoordinate {
-    pub(crate) fn new(x: isize, y: isize) -> Self {
-        Self { x, y }
-    }
 }
 
 pub(crate) struct EachCanvasCoordinate {

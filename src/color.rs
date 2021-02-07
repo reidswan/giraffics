@@ -41,13 +41,19 @@ impl Color {
         self.0[3]
     }
 
-    pub(crate) fn scale(&self, scalar: u8) -> Self {
+    pub(crate) fn scale(&self, scalar: f64) -> Self {
         let red = mul_with_ceiling(self.red(), scalar);
         let green = mul_with_ceiling(self.green(), scalar);
         let blue = mul_with_ceiling(self.blue(), scalar);
         let alpha = mul_with_ceiling(self.alpha(), scalar);
 
         Color::rgba(red, green, blue, alpha)
+    }
+
+    pub(crate) fn from_rgb_tuple(tuple: (f64, f64, f64)) -> Self {
+        let (red, green, blue) = tuple;
+
+        Self::rgb(red as u8, green as u8, blue as u8)
     }
 }
 
@@ -66,7 +72,7 @@ impl Add<Color> for Color {
 
 impl<T> Mul<T> for Color
 where
-    T: Into<u8>,
+    T: Into<f64>,
 {
     type Output = Color;
 
@@ -84,9 +90,9 @@ fn add_with_ceiling(a: u8, b: u8) -> u8 {
     }
 }
 
-fn mul_with_ceiling(a: u8, b: u8) -> u8 {
-    let sum = (a as u16) * (b as u16);
-    if sum > (u8::MAX as u16) {
+fn mul_with_ceiling(a: u8, b: f64) -> u8 {
+    let sum = (a as f64) * b;
+    if sum > (u8::MAX as f64) {
         u8::MAX
     } else {
         sum as u8
