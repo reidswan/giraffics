@@ -12,42 +12,34 @@ use logos::Logos;
  * value = f64 | String | (f64, f64, f64)
  */
 
-#[derive(Debug)]
-pub(crate) enum Definition {
-    PointLight {
-        intensity: f64,
-        position: (f64, f64, f64),
-    },
-    DirectionLight {
-        intensity: f64,
-        direction: (f64, f64, f64),
-    },
-    AmbientLight {
-        intensity: f64,
-    },
-    Sphere {
-        color: (f64, f64, f64),
-        center: (f64, f64, f64),
-        radius: f64,
-    },
-    Window {
-        title: Option<String>,
-        width: Option<f64>,
-        height: Option<f64>,
-    },
+pub(crate) struct SceneDefinition {
+    pub window: Option<WindowDefinition>,
+    pub lights: Vec<LightDefinition>,
+    pub spheres: Vec<SphereDefinition>,
 }
 
-impl Definition {
-    fn from_raw(raw: RawDefinition) -> Result<Self, String> {
-        match &raw.def_type[..] {
-            "window" => Self::window_from_raw(raw),
-            "light" => Self::light_from_raw(raw),
-            "sphere" => Self::sphere_from_raw(raw),
-            t => Err(format!("Unsupported definition type: {}", t)),
+impl SceneDefinition {
+    fn from_raw(raw: Vec<RawDefinition>) -> Result<Self, String> {
+        let mut window = None;
+        let mut lights = vec![];
+        let mut spheres = vec![];
+        for defn in raw {
+            match &defn.def_type[..] {
+                "window" => window = Some(Self::window_from_raw(defn)?),
+                "light" => lights.push(Self::light_from_raw(defn)?),
+                "sphere" => spheres.push(Self::sphere_from_raw(defn)?),
+                t => return Err(format!("Unsupported definition type: {}", t)),
+            }
         }
+
+        Ok(Self {
+            window,
+            lights,
+            spheres,
+        })
     }
 
-    fn window_from_raw(raw: RawDefinition) -> Result<Self, String> {
+    fn window_from_raw(raw: RawDefinition) -> Result<WindowDefinition, String> {
         let mut title = None;
         let mut width = None;
         let mut height = None;
@@ -66,14 +58,14 @@ impl Definition {
             }
         }
 
-        Ok(Definition::Window {
+        Ok(WindowDefinition {
             title,
             width,
             height,
         })
     }
 
-    fn light_from_raw(raw: RawDefinition) -> Result<Self, String> {
+    fn light_from_raw(raw: RawDefinition) -> Result<LightDefinition, String> {
         let mut light_type = None;
         let mut intensity = None;
         let mut position = None;
@@ -104,7 +96,7 @@ impl Definition {
                 if position.is_some() || direction.is_some() {
                     return Err("Only type and intensity are supported for ambient lights".into());
                 }
-                Ok(Definition::AmbientLight {
+                Ok(LightDefinition::AmbientLight {
                     intensity: intensity.unwrap(),
                 })
             }
@@ -114,7 +106,7 @@ impl Definition {
                 } else if direction.is_some() {
                     Err("point lights do not support the direction property".into())
                 } else {
-                    Ok(Definition::PointLight {
+                    Ok(LightDefinition::PointLight {
                         intensity: intensity.unwrap(),
                         position: position.unwrap(),
                     })
@@ -126,7 +118,7 @@ impl Definition {
                 } else if position.is_some() {
                     Err("directional lights do not support the position property".into())
                 } else {
-                    Ok(Definition::DirectionLight {
+                    Ok(LightDefinition::DirectionLight {
                         intensity: intensity.unwrap(),
                         direction: direction.unwrap(),
                     })
@@ -136,7 +128,7 @@ impl Definition {
         }
     }
 
-    fn sphere_from_raw(raw: RawDefinition) -> Result<Self, String> {
+    fn sphere_from_raw(raw: RawDefinition) -> Result<SphereDefinition, String> {
         let mut color = None;
         let mut center = None;
         let mut radius = None;
@@ -160,7 +152,7 @@ impl Definition {
                     .into(),
             )
         } else {
-            Ok(Definition::Sphere {
+            Ok(SphereDefinition {
                 color: color.unwrap(),
                 center: center.unwrap(),
                 radius: radius.unwrap(),
@@ -197,6 +189,32 @@ impl Definition {
             )),
         }
     }
+}
+
+pub(crate) struct WindowDefinition {
+    pub title: Option<String>,
+    pub width: Option<f64>,
+    pub height: Option<f64>,
+}
+
+pub(crate) enum LightDefinition {
+    PointLight {
+        intensity: f64,
+        position: (f64, f64, f64),
+    },
+    DirectionLight {
+        intensity: f64,
+        direction: (f64, f64, f64),
+    },
+    AmbientLight {
+        intensity: f64,
+    },
+}
+
+pub(crate) struct SphereDefinition {
+    pub color: (f64, f64, f64),
+    pub center: (f64, f64, f64),
+    pub radius: f64,
 }
 
 struct RawDefinition {
@@ -248,7 +266,7 @@ impl Parser {
         }
     }
 
-    pub(crate) fn parse(&mut self) -> Result<Vec<Definition>, String> {
+    pub(crate) fn parse(&mut self) -> Result<SceneDefinition, String> {
         let mut definitions = vec![];
         self.munch_newlines();
         while let Some(x) = self.peek() {
@@ -256,10 +274,7 @@ impl Parser {
             self.munch_newlines();
         }
 
-        definitions
-            .into_iter()
-            .map(|def| Definition::from_raw(def))
-            .collect()
+        SceneDefinition::from_raw(definitions)
     }
 
     fn munch_newlines(&mut self) {

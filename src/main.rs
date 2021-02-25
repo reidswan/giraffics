@@ -6,11 +6,11 @@ mod scene;
 mod traits;
 
 use canvas::Canvas;
-use color::{Color, BLACK, BLUE, GREEN, RED};
+use color::{Color, BLACK};
 use coord::{WorldCoordinate, ORIGIN};
-use lang::parser::{Definition, Parser};
+use lang::parser::{LightDefinition, Parser, SceneDefinition};
 use log::error;
-use pixels::{Error, SurfaceTexture};
+use pixels::SurfaceTexture;
 use scene::object::light::Light;
 use scene::object::shape::Sphere;
 use scene::{Scene, ViewPort};
@@ -82,56 +82,51 @@ fn main() -> Result<(), String> {
     });
 }
 
-fn load_scene(definitions: Vec<Definition>) -> Scene {
+fn load_scene(definition: SceneDefinition) -> Scene {
     let mut window_width = canvas::DEFAULT_WIDTH;
     let mut window_height = canvas::DEFAULT_HEIGHT;
     let mut canvas = Canvas::default();
     let mut window_title = String::from("Giraffics");
-    let mut lights = vec![];
-    let mut spheres = vec![];
-    for definition in definitions {
-        match definition {
-            Definition::Window {
-                title,
-                width,
-                height,
-            } => {
-                if let Some(s) = title {
-                    window_title = s.clone();
-                }
-                if let Some(h) = height {
-                    window_height = h as usize;
-                }
-                if let Some(w) = width {
-                    window_width = w as usize;
-                }
-            }
-            Definition::Sphere {
-                radius,
-                color,
-                center,
-            } => spheres.push(Sphere::new(
-                radius,
-                WorldCoordinate::from_tuple(center),
-                Color::from_rgb_tuple(color),
-            )),
-            Definition::PointLight {
-                intensity,
-                position,
-            } => lights.push(Light::point(
-                WorldCoordinate::from_tuple(position),
-                intensity,
-            )),
-            Definition::AmbientLight { intensity } => lights.push(Light::ambient(intensity)),
-            Definition::DirectionLight {
-                intensity,
-                direction,
-            } => lights.push(Light::direction(
-                WorldCoordinate::from_tuple(direction),
-                intensity,
-            )),
+    if let Some(window_def) = definition.window {
+        if let Some(width) = window_def.width {
+            window_width = width as usize;
+        }
+        if let Some(height) = window_def.height {
+            window_height = height as usize;
+        }
+        if let Some(title) = window_def.title {
+            window_title = title;
         }
     }
+
+    let lights = definition
+        .lights
+        .into_iter()
+        .map(|light_def| match light_def {
+            LightDefinition::AmbientLight { intensity } => Light::ambient(intensity),
+            LightDefinition::DirectionLight {
+                intensity,
+                direction,
+            } => Light::direction(WorldCoordinate::from_tuple(direction), intensity),
+            LightDefinition::PointLight {
+                intensity,
+                position,
+            } => Light::point(WorldCoordinate::from_tuple(position), intensity),
+        })
+        .collect();
+
+    let spheres = definition
+        .spheres
+        .into_iter()
+        .map(|sphere| {
+            Sphere::new(
+                sphere.radius,
+                WorldCoordinate::from_tuple(sphere.center),
+                Color::from_rgb_tuple(sphere.color),
+            )
+        })
+        .collect();
+
     canvas = canvas.with_height(window_height).with_width(window_width);
     Scene::new(ORIGIN, ViewPort::default(), canvas, BLACK, window_title)
         .with_lights(lights)
